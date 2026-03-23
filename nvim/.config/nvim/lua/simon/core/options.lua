@@ -23,3 +23,9 @@ opt.clipboard:append("unnamedplus")
 
 opt.splitright = true
 opt.splitbelow = true
+
+-- auto-load CP template for new .cpp files
+vim.api.nvim_create_autocmd("BufNewFile", {
+    pattern = "*.cpp",
+    command = "0r ~/.config/nvim/templates/cp.cpp",
+})

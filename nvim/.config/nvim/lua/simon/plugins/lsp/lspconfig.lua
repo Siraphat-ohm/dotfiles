@@ -72,7 +72,7 @@ return {
         local capabilities = cmp_nvim_lsp.default_capabilities()
 
         -- gutter signs
-        local signs = { Error = " ", Warn = " ", Hint = "󰠠 ", Info = " " }
+        local signs = { Error = " ", Warn = " ", Hint = "󰠠 ", Info = " " }
         for type, icon in pairs(signs) do
             local hl = "DiagnosticSign" .. type
             vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
@@ -90,6 +90,17 @@ return {
                         completion = { callSnippet = "Replace" },
                     },
                 },
+            },
+            clangd = {
+                cmd = {
+                    "clangd",
+                    "--background-index",
+                    "--clang-tidy",
+                    "--header-insertion=iwyu",
+                    "--completion-style=detailed",
+                },
+                filetypes = { "c", "cpp" },
+                capabilities = vim.tbl_deep_extend("force", capabilities, { offsetEncoding = "utf-16" }),
             },
         }
 
