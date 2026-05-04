@@ -1,0 +1,289 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# ai-warmup.sh
+#
+# Usage:
+#   ./ai-warmup.sh BACKEND WORK_START_HH:MM HOURS_BEFORE [once|loop|now]
+#
+# Backends:
+#   claude
+#   codex
+#
+# Examples:
+#   ./ai-warmup.sh claude 10:00 3 once
+#   ./ai-warmup.sh codex  10:00 3 once
+#   ./ai-warmup.sh claude 10:00 3 loop
+#   ./ai-warmup.sh codex  10:00 3 loop
+#   ./ai-warmup.sh claude 10:00 3 now
+#
+# Meaning:
+#   If WORK_START_HH:MM is 10:00 and HOURS_BEFORE is 3,
+#   the script will run the warmup at 07:00.
+#
+# Notes:
+#   This does NOT increase your quota.
+#   It only sends a tiny warmup prompt before your actual work time.
+#   Whether this affects a rolling/session window depends on the provider behavior.
+
+BACKEND="${1:-}"
+WORK_START="${2:-}"
+HOURS_BEFORE="${3:-3}"
+MODE="${4:-once}"
+
+BASE_DIR="${AI_WARMUP_BASE_DIR:-$HOME/.ai-warmup}"
+LOG_FILE="${AI_WARMUP_LOG:-$HOME/.ai-warmup.log}"
+
+WARMUP_PROMPT="${AI_WARMUP_PROMPT:-Reply only: OK}"
+
+# Optional model overrides:
+#
+#   CLAUDE_MODEL="sonnet" ./ai-warmup.sh claude 10:00 3 once
+#   CLAUDE_MODEL="opus"   ./ai-warmup.sh claude 10:00 3 once
+#
+#   CODEX_MODEL="gpt-5.3-codex" ./ai-warmup.sh codex 10:00 3 once
+#
+CLAUDE_MODEL="${CLAUDE_MODEL:-}"
+CODEX_MODEL="${CODEX_MODEL:-}"
+
+usage() {
+  cat <<EOF
+Usage:
+  $0 BACKEND WORK_START_HH:MM HOURS_BEFORE [once|loop|now]
+
+Backends:
+  claude
+  codex
+
+Examples:
+  $0 claude 10:00 3 once
+  $0 codex  10:00 3 once
+  $0 claude 10:00 3 loop
+  $0 codex  10:00 3 loop
+  $0 claude 10:00 3 now
+
+Environment variables:
+  AI_WARMUP_PROMPT     Custom prompt
+  AI_WARMUP_LOG        Log file path
+  AI_WARMUP_BASE_DIR   Base warmup directory
+  CLAUDE_MODEL         Claude model override, e.g. sonnet or opus
+  CODEX_MODEL          Codex model override
+EOF
+  exit 1
+}
+
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG_FILE"
+}
+
+validate_inputs() {
+  [[ "$BACKEND" == "claude" || "$BACKEND" == "codex" ]] || usage
+
+  [[ -n "$WORK_START" ]] || usage
+  [[ "$WORK_START" =~ ^[0-2][0-9]:[0-5][0-9]$ ]] || {
+    echo "Invalid WORK_START format. Use HH:MM, e.g. 10:00" >&2
+    exit 1
+  }
+
+  local hour="${WORK_START%%:*}"
+  if (( 10#$hour > 23 )); then
+    echo "Invalid hour in WORK_START. Use 00:00 to 23:59" >&2
+    exit 1
+  fi
+
+  [[ "$HOURS_BEFORE" =~ ^[0-9]+([.][0-9]+)?$ ]] || {
+    echo "HOURS_BEFORE must be a number, e.g. 3 or 2.5" >&2
+    exit 1
+  }
+
+  [[ "$MODE" == "once" || "$MODE" == "loop" || "$MODE" == "now" ]] || {
+    echo "Mode must be once, loop, or now" >&2
+    exit 1
+  }
+
+  command -v python3 >/dev/null 2>&1 || {
+    echo "python3 is required for date calculation." >&2
+    exit 1
+  }
+
+  command -v git >/dev/null 2>&1 || {
+    echo "git is required to create a tiny warmup repo." >&2
+    exit 1
+  }
+
+  if [[ "$BACKEND" == "claude" ]]; then
+    command -v claude >/dev/null 2>&1 || {
+      echo "claude command not found. Install/login Claude Code first." >&2
+      exit 1
+    }
+  fi
+
+  if [[ "$BACKEND" == "codex" ]]; then
+    command -v codex >/dev/null 2>&1 || {
+      echo "codex command not found. Install/login Codex CLI first." >&2
+      exit 1
+    }
+  fi
+}
+
+warmup_dir() {
+  echo "$BASE_DIR/$BACKEND"
+}
+
+setup_warmup_repo() {
+  local dir
+  dir="$(warmup_dir)"
+
+  mkdir -p "$dir"
+
+  if [[ ! -d "$dir/.git" ]]; then
+    git -C "$dir" init -q
+    printf "# %s warmup repo\n" "$BACKEND" > "$dir/README.md"
+    git -C "$dir" add README.md >/dev/null 2>&1 || true
+
+    # Commit is optional. It may fail if git user.name/email is not configured.
+    git -C "$dir" commit -m "init warmup repo" >/dev/null 2>&1 || true
+  fi
+}
+
+next_warmup_epoch() {
+  python3 - "$WORK_START" "$HOURS_BEFORE" <<'PY'
+import sys
+from datetime import datetime, timedelta
+
+work_start = sys.argv[1]
+hours_before = float(sys.argv[2])
+
+hh, mm = map(int, work_start.split(":"))
+now = datetime.now()
+
+candidates = []
+
+# Supports overnight cases:
+# Work starts at 01:00, warmup 3 hours before = previous day 22:00.
+for day_offset in range(-1, 8):
+    work = now.replace(hour=hh, minute=mm, second=0, microsecond=0) + timedelta(days=day_offset)
+    warmup = work - timedelta(hours=hours_before)
+
+    if warmup > now:
+        candidates.append((warmup, work))
+
+warmup, work = min(candidates, key=lambda x: x[0])
+
+print(int(warmup.timestamp()))
+print(warmup.strftime("%Y-%m-%d %H:%M:%S"))
+print(work.strftime("%Y-%m-%d %H:%M:%S"))
+PY
+}
+
+sleep_until_next_warmup() {
+  mapfile -t schedule < <(next_warmup_epoch)
+
+  local target_epoch="${schedule[0]}"
+  local warmup_time="${schedule[1]}"
+  local work_time="${schedule[2]}"
+  local now_epoch
+  now_epoch="$(date +%s)"
+
+  local sleep_seconds=$(( target_epoch - now_epoch ))
+
+  log "Next $BACKEND warmup: $warmup_time"
+  log "For work start:      $work_time"
+  log "Log file:            $LOG_FILE"
+
+  if (( sleep_seconds > 0 )); then
+    sleep "$sleep_seconds"
+  fi
+}
+
+run_claude_warmup() {
+  local dir
+  dir="$(warmup_dir)"
+
+  local cmd=(
+    claude
+    -p "$WARMUP_PROMPT"
+    --no-session-persistence
+    --max-turns 1
+    --tools ""
+    --output-format text
+  )
+
+  if [[ -n "$CLAUDE_MODEL" ]]; then
+    cmd+=(--model "$CLAUDE_MODEL")
+  fi
+
+  log "Running Claude warmup in $dir"
+
+  if (cd "$dir" && "${cmd[@]}") >> "$LOG_FILE" 2>&1; then
+    log "Claude warmup OK"
+  else
+    local exit_code=$?
+    log "Claude warmup FAILED: exit $exit_code"
+    return "$exit_code"
+  fi
+}
+
+run_codex_warmup() {
+  local dir
+  dir="$(warmup_dir)"
+
+  local cmd=(
+    codex exec
+    --ephemeral
+    --cd "$dir"
+    --sandbox read-only
+  )
+
+  if [[ -n "$CODEX_MODEL" ]]; then
+    cmd+=(--model "$CODEX_MODEL")
+  fi
+
+  log "Running Codex warmup in $dir"
+
+  if "${cmd[@]}" "$WARMUP_PROMPT" >> "$LOG_FILE" 2>&1; then
+    log "Codex warmup OK"
+  else
+    local exit_code=$?
+    log "Codex warmup FAILED: exit $exit_code"
+    return "$exit_code"
+  fi
+}
+
+run_warmup() {
+  setup_warmup_repo
+
+  case "$BACKEND" in
+    claude)
+      run_claude_warmup
+      ;;
+    codex)
+      run_codex_warmup
+      ;;
+  esac
+}
+
+main() {
+  validate_inputs
+
+  if [[ "$MODE" == "now" ]]; then
+    run_warmup
+    exit 0
+  fi
+
+  if [[ "$MODE" == "once" ]]; then
+    sleep_until_next_warmup
+    run_warmup
+    exit 0
+  fi
+
+  while true; do
+    sleep_until_next_warmup
+    run_warmup || true
+
+    # Avoid immediate repeat if the clock changes or the machine wakes oddly.
+    sleep 60
+  done
+}
+
+main "$@"

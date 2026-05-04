@@ -1,0 +1,102 @@
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "0xProto Nerd Font";
+    font-size: 12px;
+    min-height: 0;
+}
+
+window#waybar {
+    background-color: transparent;
+    color: #ffffff;
+}
+
+tooltip {
+    background-color: rgba(30, 30, 46, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #ffffff;
+}
+
+/* ── Modules ── */
+#network,
+#pulseaudio,
+#battery,
+#backlight,
+#clock,
+#memory,
+#cpu,
+#tray,
+#user,
+#bluetooth,
+#custom-power,
+#custom-media,
+#custom-notifications,
+#workspaces,
+#power-profiles-daemon,
+#custom-music {
+    margin: 4px 3px 4px 3px;
+    padding: 2px 12px;
+    border-radius: 20px;
+    background-color: rgba(20, 20, 20, 0.75);
+    color: #ffffff;
+    transition: background 0.3s ease;
+}
+
+#workspaces {
+    padding: 2px 6px;
+}
+
+#clock {
+    background-color: rgba(20, 20, 20, 0.75);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+#battery.charging,
+#battery.plugged {
+    background-color: rgba(40, 120, 70, 0.8);
+}
+
+#battery.warning:not(.charging) {
+    background-color: rgba(200, 150, 0, 0.8);
+}
+
+#battery.critical:not(.charging) {
+    background-color: rgba(180, 40, 40, 0.85);
+    animation-name: blink;
+    animation-duration: 0.5s;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+}
+
+@keyframes blink {
+    to { color: rgba(255, 255, 255, 0.5); }
+}
+
+#network.ethernet,
+#network.wifi,
+#network.linked,
+#network.disconnected {
+    color: #ffffff;
+}
+
+#custom-power {
+    margin-right: 8px;
+}
+
+/* ── Workspaces ── */
+#workspaces button {
+    padding: 0 6px;
+    color: rgba(255, 255, 255, 0.35);
+    background: transparent;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+#workspaces button.focused,
+#workspaces button.active {
+    color: #ffffff;
+    font-size: 16px;
+}

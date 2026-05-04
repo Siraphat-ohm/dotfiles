@@ -1,0 +1,121 @@
+[terminal.shell]
+program = "/bin/zsh"
+args = ["-c", "tmux new-session -A -s main"]
+
+[window]
+padding = { x = 10, y = 10 }
+decorations = "None"
+opacity = 1.0
+blur = true
+startup_mode = "Windowed"
+title = "Alacritty"
+dynamic_title = true
+
+[font]
+size = 11.0
+
+[font.normal]
+family = "0xProto Nerd Font"
+style = "Regular"
+
+[font.bold]
+family = "0xProto Nerd Font"
+style = "Bold"
+
+[font.italic]
+family = "0xProto Nerd Font"
+style = "Italic"
+
+[font.offset]
+x = 0
+y = 2
+
+[scrolling]
+history = 10000
+multiplier = 3
+
+[cursor]
+style = { shape = "Block", blinking = "On" }
+blink_interval = 500
+unfocused_hollow = true
+
+[colors.primary]
+background = "#161616"
+foreground = "#f2f4f8"
+dim_foreground = "#697077"
+bright_foreground = "#f2f4f8"
+
+[colors.cursor]
+text = "#161616"
+cursor = "#78a9ff"
+
+[colors.vi_mode_cursor]
+text = "#161616"
+cursor = "#be95ff"
+
+[colors.search.matches]
+foreground = "#161616"
+background = "#697077"
+
+[colors.search.focused_match]
+foreground = "#161616"
+background = "#42be65"
+
+[colors.footer_bar]
+background = "#262626"
+foreground = "#f2f4f8"
+
+[colors.hints.start]
+foreground = "#161616"
+background = "#f1c21b"
+
+[colors.hints.end]
+foreground = "#161616"
+background = "#697077"
+
+[colors.selection]
+text = "#161616"
+background = "#be95ff"
+
+[colors.normal]
+black   = "#262626"
+red     = "#fa4d56"
+green   = "#42be65"
+yellow  = "#f1c21b"
+blue    = "#78a9ff"
+magenta = "#be95ff"
+cyan    = "#3ddbd9"
+white   = "#dde1e7"
+
+[colors.bright]
+black   = "#393939"
+red     = "#ff7eb6"
+green   = "#42be65"
+yellow  = "#ffe97b"
+blue    = "#33b1ff"
+magenta = "#be95ff"
+cyan    = "#3ddbd9"
+white   = "#f2f4f8"
+
+[colors.dim]
+black   = "#161616"
+red     = "#fa4d56"
+green   = "#42be65"
+yellow  = "#f1c21b"
+blue    = "#78a9ff"
+magenta = "#be95ff"
+cyan    = "#3ddbd9"
+white   = "#697077"
+
+[keyboard]
+bindings = [
+  # Ctrl+Shift+C/V for copy/paste
+  { key = "C", mods = "Control|Shift", action = "Copy" },
+  { key = "V", mods = "Control|Shift", action = "Paste" },
+  # Ctrl+Shift+N new window
+  { key = "N", mods = "Control|Shift", action = "CreateNewWindow" },
+  # Increase/decrease font size
+  { key = "Plus",  mods = "Control", action = "IncreaseFontSize" },
+  { key = "Minus", mods = "Control", action = "DecreaseFontSize" },
+  { key = "Key0",  mods = "Control", action = "ResetFontSize" },
+]
